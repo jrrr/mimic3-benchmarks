@@ -39,6 +39,8 @@ if args.verbose:
     print('REMOVE ICU TRANSFERS:', stays.ICUSTAY_ID.unique().shape[0], stays.HADM_ID.unique().shape[0],
           stays.SUBJECT_ID.unique().shape[0])
 
+admits = add_unplanned_readmission_to_admits(admits)
+
 stays = merge_on_subject_admission(stays, admits)
 stays = merge_on_subject(stays, patients)
 stays = filter_admissions_on_nb_icustays(stays)
@@ -46,6 +48,7 @@ if args.verbose:
     print('REMOVE MULTIPLE STAYS PER ADMIT:', stays.ICUSTAY_ID.unique().shape[0], stays.HADM_ID.unique().shape[0],
           stays.SUBJECT_ID.unique().shape[0])
 
+#stays = add_unplanned_readmission_to_icustays(stays)
 stays = add_age_to_icustays(stays)
 stays = add_inunit_mortality_to_icustays(stays)
 stays = add_inhospital_mortality_to_icustays(stays)
@@ -60,7 +63,7 @@ diagnoses = filter_diagnoses_on_stays(diagnoses, stays)
 diagnoses.to_csv(os.path.join(args.output_path, 'all_diagnoses.csv'), index=False)
 count_icd_codes(diagnoses, output_path=os.path.join(args.output_path, 'diagnosis_counts.csv'))
 
-phenotypes = add_hcup_ccs_2015_groups(diagnoses, yaml.load(open(args.phenotype_definitions, 'r')))
+phenotypes = add_hcup_ccs_2015_groups(diagnoses, yaml.load(open(args.phenotype_definitions, 'r'), Loader=yaml.FullLoader))
 make_phenotype_label_matrix(phenotypes, stays).to_csv(os.path.join(args.output_path, 'phenotype_labels.csv'),
                                                       index=False, quoting=csv.QUOTE_NONNUMERIC)
 

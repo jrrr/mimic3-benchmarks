@@ -37,6 +37,9 @@ def main():
                                dtype={'HADM_ID': str, "ICUSTAY_ID": str})
         stays_df.columns = stays_df.columns.str.upper()
 
+        stays_df = stays_df.loc[~stays_df.ICUSTAY_ID.duplicated(keep='first')]
+        stays_df.to_csv(os.path.join(args.subjects_root_path, subject, 'stays.csv'), index=False)
+
         # assert that there is no row with empty ICUSTAY_ID or HADM_ID
         assert(not stays_df['ICUSTAY_ID'].isnull().any())
         assert(not stays_df['HADM_ID'].isnull().any())

@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-from mimic3benchmark.readers import InHospitalMortalityReader
+from mimic3benchmark.readers import UnplannedReadmissionReader
 from mimic3models import common_utils
 from mimic3models.metrics import print_metrics_binary
-from mimic3models.in_hospital_mortality.utils import save_results
 from sklearn.preprocessing import Imputer, StandardScaler
 from sklearn.linear_model import LogisticRegression
 
@@ -20,7 +19,15 @@ def read_and_extract_features(reader, period, features):
     ret = common_utils.read_chunk(reader, reader.get_number_of_examples())
     #ret = common_utils.read_chunk(reader, 10)
     X = common_utils.extract_features_from_rawdata(ret['X'], ret['header'], period, features)
-    return (X, ret['y'], ret['name'])
+    return (X, ret['y'], ret['name'], ret['t'])
+
+
+def save_results(names, ts, pred, y_true, path):
+    common_utils.create_directory(os.path.dirname(path))
+    with open(path, 'w') as f:
+        f.write("stay,period_length,prediction,y_true\n")
+        for (name, t, x, y) in zip(names, ts, pred, y_true):
+            f.write("{},{:.6f},{:.6f},{}\n".format(name, t, x, y))
 
 
 def main():
@@ -33,8 +40,8 @@ def main():
                         choices=['first4days', 'first8days', 'last12hours', 'first25percent', 'first50percent', 'all'])
     parser.add_argument('--features', type=str, default='all', help='specifies what features to extract',
                         choices=['all', 'len', 'all_but_len'])
-    parser.add_argument('--data', type=str, help='Path to the data of in-hospital mortality task',
-                        default=os.path.join(os.path.dirname(__file__), '../../../data/in-hospital-mortality/'))
+    parser.add_argument('--data', type=str, help='Path to the data of the unplanned readmission task',
+                        default=os.path.join(os.path.dirname(__file__), '../../../data/readmission/'))
     parser.add_argument('--output_dir', type=str, help='Directory relative which all output files are stored',
                         default='.')
     parser.add_argument('--dump_data', type=str, help='Write the data to a file instead of doing a logistic regression',
@@ -42,22 +49,19 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    train_reader = InHospitalMortalityReader(dataset_dir=os.path.join(args.data, 'train'),
-                                             listfile=os.path.join(args.data, 'train_listfile.csv'),
-                                             period_length=48.0)
+    train_reader = UnplannedReadmissionReader(dataset_dir=os.path.join(args.data, 'train'),
+                                             listfile=os.path.join(args.data, 'train_listfile.csv'))
 
-    val_reader = InHospitalMortalityReader(dataset_dir=os.path.join(args.data, 'train'),
-                                           listfile=os.path.join(args.data, 'val_listfile.csv'),
-                                           period_length=48.0)
+    val_reader = UnplannedReadmissionReader(dataset_dir=os.path.join(args.data, 'train'),
+                                           listfile=os.path.join(args.data, 'val_listfile.csv'))
 
-    test_reader = InHospitalMortalityReader(dataset_dir=os.path.join(args.data, 'test'),
-                                            listfile=os.path.join(args.data, 'test_listfile.csv'),
-                                            period_length=48.0)
+    test_reader = UnplannedReadmissionReader(dataset_dir=os.path.join(args.data, 'test'),
+                                            listfile=os.path.join(args.data, 'test_listfile.csv'))
 
     print('Reading data and extracting features ...')
-    (train_X, train_y, train_names) = read_and_extract_features(train_reader, args.period, args.features)
-    (val_X, val_y, val_names) = read_and_extract_features(val_reader, args.period, args.features)
-    (test_X, test_y, test_names) = read_and_extract_features(test_reader, args.period, args.features)
+    (train_X, train_y, train_names, train_ts) = read_and_extract_features(train_reader, args.period, args.features)
+    (val_X, val_y, val_names, val_ts) = read_and_extract_features(val_reader, args.period, args.features)
+    (test_X, test_y, test_names, test_ts) = read_and_extract_features(test_reader, args.period, args.features)
     print('  train data shape = {}'.format(train_X.shape))
     print('  validation data shape = {}'.format(val_X.shape))
     print('  test data shape = {}'.format(test_X.shape))
@@ -111,7 +115,7 @@ def main():
         ret = {k: float(v) for k, v in ret.items()}
         json.dump(ret, res_file)
 
-    save_results(test_names, prediction, test_y,
+    save_results(test_names, test_ts, prediction, test_y,
                  os.path.join(args.output_dir, 'predictions', file_name + '.csv'))
 
 
